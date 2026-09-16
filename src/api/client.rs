@@ -304,15 +304,11 @@ impl UnifiClient {
         Ok(())
     }
 
+    /// True when a DNS endpoint is not there: the legacy markers, plus the
+    /// `Unsupported` that `json_or_unsupported` raises when UniFi OS proxies
+    /// an unknown path to the web UI.
     fn is_absent_dns_endpoint(err: &ApiError) -> bool {
-        match err {
-            ApiError::NotFound(_) | ApiError::Unsupported { .. } => true,
-            ApiError::Api {
-                status: 400,
-                message,
-            } if message.contains("api.err.InvalidObject") => true,
-            _ => false,
-        }
+        is_absent_legacy_endpoint(err) || matches!(err, ApiError::Unsupported { .. })
     }
 
     // Paginate through all results from Integration API

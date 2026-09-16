@@ -1791,7 +1791,9 @@ async fn run() {
                     Ok(write) => write,
                     Err(message) => config_exit(&message),
                 };
-                commands::dns::update(&mut client, &identifier, &write, out).await
+                // Resolve by the id already found so the second lookup cannot
+                // land on a different record than the one the merge was based on.
+                commands::dns::update(&mut client, &existing.id, &write, out).await
             }
             DnsCommand::Delete { identifier } => {
                 require_confirmation(

@@ -1008,3 +1008,49 @@ fn resolve_static_dns_prefers_id_and_conflicts_on_duplicate_names() {
         other => panic!("expected conflict, got {other:?}"),
     }
 }
+
+#[test]
+fn update_from_a_legacy_mx_record_drops_the_ttl_it_cannot_send() {
+    let existing = StaticDnsRecord {
+        id: "aaaaaaaaaaaaaaaaaaaaaaaa".into(),
+        name: "example.com".into(),
+        record_type: DnsRecordType::Mx,
+        value: "mail.example.com".into(),
+        ttl: Some(300),
+        enabled: true,
+        priority: Some(10),
+        weight: None,
+        port: None,
+    };
+    let write = StaticDnsWrite::from_record(&existing);
+    assert_eq!(write.ttl, None);
+    write
+        .validate()
+        .expect("an untouched MX record must still validate");
+}
+
+#[test]
+fn legacy_body_keeps_a_trailing_dot_in_txt_data() {
+    let write = StaticDnsWrite {
+        name: "example.com".into(),
+        record_type: DnsRecordType::Txt,
+        value: "v=spf1 -all.".into(),
+        ttl: None,
+        enabled: true,
+        priority: None,
+        weight: None,
+        port: None,
+    };
+    assert_eq!(write.legacy_body().unwrap()["value"], "v=spf1 -all.");
+    let cname = StaticDnsWrite {
+        name: "media.example.com".into(),
+        record_type: DnsRecordType::Cname,
+        value: "nas.example.com.".into(),
+        ttl: None,
+        enabled: true,
+        priority: None,
+        weight: None,
+        port: None,
+    };
+    assert_eq!(cname.legacy_body().unwrap()["value"], "nas.example.com");
+}

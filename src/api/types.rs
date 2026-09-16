@@ -144,12 +144,18 @@ pub struct StaticDnsWrite {
 }
 
 impl StaticDnsWrite {
+    /// Start an update from what the controller holds.
+    ///
+    /// The v2 `static-dns` API stores a TTL on every record, including MX and
+    /// TXT, while `validate` rejects a TTL on those types. Copying it across
+    /// would make an update that never mentioned `--ttl` fail, so it is only
+    /// carried for types that accept one.
     pub fn from_record(record: &StaticDnsRecord) -> Self {
         Self {
             name: record.name.clone(),
             record_type: record.record_type,
             value: record.value.clone(),
-            ttl: record.ttl,
+            ttl: record.ttl.filter(|_| record.record_type.accepts_ttl()),
             enabled: record.enabled,
             priority: record.priority,
             weight: record.weight,
@@ -268,11 +274,17 @@ impl StaticDnsWrite {
 
     pub fn legacy_body(&self) -> Result<serde_json::Value, String> {
         self.validate()?;
+        // A trailing dot on a TXT value is data, not a root label.
+        let value = if self.record_type == DnsRecordType::Txt {
+            self.value.clone()
+        } else {
+            strip_trailing_dot(&self.value)
+        };
         let mut body = serde_json::json!({
             "enabled": self.enabled,
             "key": self.name,
             "record_type": self.record_type.as_str(),
-            "value": strip_trailing_dot(&self.value),
+            "value": value,
         });
         if self.record_type.accepts_ttl() {
             body["ttl"] = self.ttl.unwrap_or(DEFAULT_DNS_TTL_SECONDS).into();
